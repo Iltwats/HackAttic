@@ -20,10 +20,12 @@ public class MainMiner {
         //Object obj = secondJson.get("data").toString();
         //JSONArray jsonArray = new JSONArray(obj.toString());
 
-        System.out.println(secondJson);
+        //System.out.println(secondJson);
         JSONObject sortedJson = getSortedJson(secondJson);
         System.out.println(sortedJson);
-        //getNonce(jsonArray,difficulty);
+        int nonce = getNonce(sortedJson,difficulty);
+        new NetworkRequest().makePostRequest(nonce);
+
     }
 
     private static JSONObject getSortedJson(JSONObject secondJson) {
@@ -37,44 +39,42 @@ public class MainMiner {
             map.put(key,value);
         }
         map = sortByKey(map);
+        List<List<Object>> lists = new ArrayList<>();
         for(Map.Entry<String, Integer> entry : map.entrySet()) {
             String key = entry.getKey();
             int value = entry.getValue();
-            sortedJson.put(key,value);
+            List<Object> list = new ArrayList<>();
+            list.add(key);
+            list.add(value);
+            lists.add(list);
         }
+
+        sortedJson.put("data",lists);
+        sortedJson.put("nonce",secondJson.get("nonce"));
         return sortedJson;
     }
 
-    public static int getNonce(JSONArray jsonArray,String difficulty) throws NoSuchAlgorithmException {
+    public static int getNonce(JSONObject json, String difficulty) throws NoSuchAlgorithmException {
         int nonce = -1;
         int diff = Integer.parseInt(difficulty);
         String bits = "0";
         String expected = bits.repeat((int) Math.ceil(diff/4));
-        Map<String,Integer> map = new HashMap<>();
-        for (int i = 0; i < jsonArray.length(); i++) {
-            JSONArray innerArray = (JSONArray) jsonArray.get(i);
-            String key = innerArray.get(0).toString();
-            int value = (int) innerArray.get(1);
-            map.put(key,value);
-        }
-        map = sortByKey(map);
-        StringBuilder originalString = new StringBuilder();
-        for(Map.Entry<String, Integer> entry : map.entrySet()) {
-            String key = entry.getKey();
-            int value = entry.getValue();
-            originalString.append(key).append(value);
-        }
+
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-         while (nonce<10) {
+         while (true) {
              nonce++;
-             System.out.println(originalString.toString());
-             byte[] hash = digest.digest(originalString.toString().getBytes(StandardCharsets.UTF_8));
+             json.put("nonce",nonce);
+             String toBeHashed = json.toString();
+             toBeHashed = toBeHashed.replaceAll(",","");
+             toBeHashed = toBeHashed.replaceAll(":","");
+             toBeHashed = toBeHashed.replaceAll(" ","");
+             System.out.println(toBeHashed);
+             byte[] hash = digest.digest(toBeHashed.getBytes(StandardCharsets.UTF_8));
              String encoded = Base64.getEncoder().encodeToString(hash);
              if(encoded.startsWith(expected)){
-                 System.out.println("nonce: "+nonce);
+                 System.out.println(encoded);
                  break;
              }
-             System.out.println(encoded);
         }
          return nonce;
     }

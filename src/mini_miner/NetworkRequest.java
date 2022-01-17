@@ -16,7 +16,7 @@ public class NetworkRequest {
     /**
      * Make a post request with content type json
      */
-    public void makePostRequest(String nonce) throws ExecutionException, InterruptedException {
+    public void makePostRequest(int nonce) throws ExecutionException, InterruptedException {
         // Creating json format to be sent
         JSONObject json = new JSONObject();
         json.put("nonce", nonce);
