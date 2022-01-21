@@ -17,16 +17,13 @@ public class NetworkRequest {
     /**
      * Make a post request with content type json
      */
-    public void makePostRequest(int nonce) throws ExecutionException, InterruptedException {
-        // Creating json format to be sent
-        JSONObject json = new JSONObject();
-        json.put("nonce", nonce);
+    public void makePostRequest(JSONObject output) throws ExecutionException, InterruptedException {
         // Setting up http clients
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url + postUrl))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json.toString()))
+                .POST(HttpRequest.BodyPublishers.ofString(output.toString()))
                 .build();
         CompletableFuture<HttpResponse<String>> response = client.sendAsync(request, HttpResponse.BodyHandlers.ofString());
         response.thenApply(HttpResponse::body);
