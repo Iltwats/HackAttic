@@ -1,22 +1,24 @@
 package password_hashing;
 
-import mini_miner.MainMiner;
+import com.google.common.hash.Hashing;
+import com.google.common.io.BaseEncoding;
 import org.json.JSONObject;
 
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.concurrent.ExecutionException;
 
+import static com.google.common.base.Charsets.UTF_8;
+
 public class MainHashing {
-    public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException {
+    public static void main(String[] args) throws ExecutionException, InterruptedException, NoSuchAlgorithmException, UnsupportedEncodingException, InvalidKeyException, InvalidKeySpecException {
         String response = new NetworkRequest().makeGetRequest();
         JSONObject jsonObject = new JSONObject(response);
         String password = jsonObject.getString("password");
@@ -31,28 +33,38 @@ public class MainHashing {
         Integer scryptP = jsonObject2.getInt("p");
         Integer scryptBuflen = jsonObject2.getInt("buflen");
         String scryptControl = jsonObject2.getString("_control");
-        String decodedSalt = bytesToHex(Base64.getDecoder().decode(salt));
-        String sha256 = computeSHA256(password, decodedSalt, pbkdf2Rounds);
-        String hmac_sha256 = computeHMAC_SHA256(password, decodedSalt, pbkdf2Rounds);
+        byte[] decoded = BaseEncoding.base64().decode(salt);
+        String sha256 = computeSHA256(password);
+        String hmac_sha256 = computeHMAC_SHA256(password, decoded);
+        String pbkdf2 = computePBKDF2(password, decoded, pbkdf2Rounds, pbkdf2Hash);
         System.out.println(hmac_sha256);
         System.out.println(sha256);
         JSONObject outputJSON = new JSONObject();
         outputJSON.put("sha256", sha256);
         outputJSON.put("hmac", hmac_sha256);
+        outputJSON.put("pbkdf2", pbkdf2);
         new NetworkRequest().makePostRequest(outputJSON);
     }
 
-    private static String computeHMAC_SHA256(String password, String decodedSalt, Integer pbkdf2Rounds) throws NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException {
-        Mac sha256_HMAC = Mac.getInstance("HmacSHA256");
-        SecretKeySpec secret_key = new SecretKeySpec(decodedSalt.getBytes("UTF-8"), "HmacSHA256");
-        sha256_HMAC.init(secret_key);
-        return bytesToHex(sha256_HMAC.doFinal(password.getBytes("UTF-8")));
+    private static String computePBKDF2(String password, byte[] decoded, Integer pbkdf2Rounds, String pbkdf2Hash) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), pbkdf2Hash.getBytes(StandardCharsets.UTF_8), pbkdf2Rounds, 64 * 8);
+        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+
+        byte[] hash = skf.generateSecret(spec).getEncoded();
+        return bytesToHex(hash);
     }
 
-    private static String computeSHA256(String password, String decodedSalt, Integer pbkdf2Rounds) throws NoSuchAlgorithmException {
-        String sha256 = password;
+    private static String computeHMAC_SHA256(String password, byte[] decodedSalt) throws NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException {
+        return Hashing.hmacSha256(decodedSalt)
+                .newHasher()
+                .putString(password, UTF_8)
+                .hash()
+                .toString();
+    }
+
+    private static String computeSHA256(String password) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] encodedHash = digest.digest(sha256.getBytes(StandardCharsets.UTF_8));
+        byte[] encodedHash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
         return bytesToHex(encodedHash);
     }
 
